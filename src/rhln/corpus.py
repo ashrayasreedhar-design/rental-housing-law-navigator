@@ -19,6 +19,32 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+# Candidate locations for the corpus, tried in order. The starter pack has
+# been seen laid out three ways in this repo (flat at root, nested under a
+# participant-pack folder, and the canonical corpus/ directory), so resolution
+# is explicit rather than assumed -- a silently-empty corpus is the worst
+# possible failure, because every downstream module would report "no rules"
+# instead of erroring.
+CORPUS_CANDIDATES = [
+    "corpus",
+    "participant-final-no-hour16/corpus",
+    ".",
+]
+
+
+def find_corpus_root(start: Path) -> Path:
+    """Locate the directory containing corpus_manifest.csv."""
+    start = Path(start)
+    for rel in CORPUS_CANDIDATES:
+        cand = (start / rel).resolve()
+        if (cand / "corpus_manifest.csv").exists():
+            return cand
+    raise FileNotFoundError(
+        f"corpus_manifest.csv not found under {start} "
+        f"(tried: {', '.join(CORPUS_CANDIDATES)})"
+    )
+
+
 SOURCE_RE = re.compile(r"^SOURCE:\s*(\S+)\s*$", re.M)
 RETRIEVED_RE = re.compile(r"^RETRIEVED:\s*(.+?)\s*$", re.M)
 
@@ -96,9 +122,16 @@ class Corpus:
                 )
                 tf = row.get("text_file")
                 if tf:
-                    path = self.root / tf
-                    if not path.exists():  # tolerate flat layout
-                        path = self.text_dir / f"{doc.doc_id}.txt"
+                    # Try the manifest-declared path, then the conventional
+                    # text/ directory, then a flat sibling file.
+                    for cand in (self.root / tf,
+                                 self.text_dir / f"{doc.doc_id}.txt",
+                                 self.root / f"{doc.doc_id}.txt"):
+                        if cand.exists():
+                            path = cand
+                            break
+                    else:
+                        path = self.root / tf
                     if path.exists():
                         raw = path.read_text(encoding="utf-8", errors="replace")
                         doc.text = raw
