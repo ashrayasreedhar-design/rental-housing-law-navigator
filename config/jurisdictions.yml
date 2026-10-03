@@ -1,0 +1,149 @@
+# Jurisdiction configuration.
+#
+# Everything jurisdiction-specific lives here. Adding a new jurisdiction means
+# editing this file and adding corpus documents -- no module changes.
+#
+# Nothing in this file is used to OVERRIDE observed data. The postal-city
+# aliases are hints for reporting only; the authoritative legal jurisdiction
+# always comes from the geocoder.
+
+# Query date used when none is supplied.
+default_as_of: "2026-10-01"
+
+# ---------------------------------------------------------------------------
+# ZIP prefixes, used only to DETECT a state/ZIP contradiction. A conflicting
+# ZIP is withheld from geocoding and flagged; it is never rewritten.
+#
+# 27 rows in the supplied sample carry a ZIP inconsistent with their state
+# (New Jersey rows with New York, Texas and Connecticut ZIPs). 16 of those sit
+# on Hoboken and Jersey City addresses -- precisely the population exercised by
+# change test T2 -- so a ZIP-first geocoding strategy would send them to the
+# wrong state entirely.
+# ---------------------------------------------------------------------------
+zip_prefixes:
+  CA: ["9"]
+  NJ: ["07", "08"]
+  MA: ["01", "02"]
+
+# ---------------------------------------------------------------------------
+# Certificate-of-occupancy cutoffs.
+#
+# README 4.1: "Year built is not certificate of occupancy. A building in the
+# cutoff year should be 'unknown'." These entries drive that rule generically.
+# ---------------------------------------------------------------------------
+co_cutoffs:
+  - postal_city: "San Francisco"
+    state: CA
+    cutoff: "1979-06-13"
+    label: "San Francisco Rent Ordinance (certificate on or before 1979-06-13)"
+    category: rent_increase_limits
+  - postal_city: "Los Angeles"
+    state: CA
+    cutoff: "1978-10-01"
+    label: "Los Angeles RSO (certificate on or before 1978-10-01)"
+    category: rent_increase_limits
+
+# ---------------------------------------------------------------------------
+# Postal-city aliases.
+#
+# REPORTING HINTS ONLY. The sample uses mailing cities, which are not always
+# the legal city: 60 of the Boston-area rows carry 9 different neighbourhood
+# mailing names and only 23 literally say "Boston". Filtering on postal_city
+# would silently drop 37 addresses from the Massachusetts change tests.
+#
+# These entries let us *verify* that the geocoder resolved as expected and
+# report a mismatch. They are never substituted for a geocoder result.
+# ---------------------------------------------------------------------------
+postal_city_aliases:
+  MA:
+    Allston: "Boston"
+    Brighton: "Boston"
+    Charlestown: "Boston"
+    Dorchester: "Boston"
+    East Boston: "Boston"
+    Hyde Park: "Boston"
+    Jamaica Plain: "Boston"
+    Mattapan: "Boston"
+    Roslindale: "Boston"
+    Roxbury: "Boston"
+    South Boston: "Boston"
+    West Roxbury: "Boston"
+  CA:
+    San Ysidro: "San Diego"
+    Van Nuys: "Los Angeles"
+    North Hollywood: "Los Angeles"
+    Woodland Hills: "Los Angeles"
+    Canoga Park: "Los Angeles"
+    Encino: "Los Angeles"
+    Granada Hills: "Los Angeles"
+    Northridge: "Los Angeles"
+    Reseda: "Los Angeles"
+    Sherman Oaks: "Los Angeles"
+    Studio City: "Los Angeles"
+    Sun Valley: "Los Angeles"
+    Sylmar: "Los Angeles"
+    Tarzana: "Los Angeles"
+    Tujunga: "Los Angeles"
+    Venice: "Los Angeles"
+    Wilmington: "Los Angeles"
+    San Pedro: "Los Angeles"
+    Pacoima: "Los Angeles"
+    Chatsworth: "Los Angeles"
+    Panorama City: "Los Angeles"
+    Winnetka: "Los Angeles"
+    Mission Hills: "Los Angeles"
+    Playa del Rey: "Los Angeles"
+
+# ---------------------------------------------------------------------------
+# Precedence.
+#
+# Which level governs when rules at different levels both cover an address.
+# `stricter_governs` means the rule more protective of the tenant applies and
+# the other is reported as `superseded` rather than dropped -- the README's
+# example is California's statewide cap yielding where local rent control
+# applies.
+# ---------------------------------------------------------------------------
+precedence:
+  order: [city, county, state]
+  default_rule: stricter_governs
+  by_category:
+    rent_increase_limits:
+      rule: stricter_governs
+      note: >-
+        Local rent control generally governs over the statewide cap where both
+        cover a unit. The statewide rule is reported as `superseded`, not
+        omitted, so the user can see why it does not control.
+    just_cause_eviction:
+      rule: stricter_governs
+    security_deposits:
+      rule: stricter_governs
+    application_screening_fees:
+      rule: stricter_governs
+    screening_restrictions:
+      rule: stricter_governs
+    algorithmic_rent_setting:
+      rule: stricter_governs
+      note: >-
+        State preemption may invert this. The NJ FAIR Act (P.L. 2026 c.43,
+        effective 2027-07-01) section 6(b) prohibits municipalities from
+        ENACTING conflicting ordinances. Whether that reaches ordinances
+        already enacted (Jersey City June 2025, Hoboken July 2025) is an open
+        question -- flagged for human review, never auto-resolved.
+
+# ---------------------------------------------------------------------------
+# Geocoding.
+# ---------------------------------------------------------------------------
+geocode:
+  provider: census
+  endpoint: "https://geocoding.geo.census.gov/geocoder/geographies/address"
+  benchmark: "Public_AR_Current"
+  vintage: "Current_Current"
+  layers: "Incorporated Places,Counties,States"
+  rate_limit_seconds: 0.4
+  timeout_seconds: 30
+  max_retries: 2
+  cache_path: "out/geocode_cache.json"
+  # An address the geocoder cannot resolve is NOT assigned a jurisdiction by
+  # falling back to postal_city. It is marked unresolved and every lookup for
+  # it returns `unknown`.
+  on_failure: mark_unresolved
