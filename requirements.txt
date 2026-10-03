@@ -1,0 +1,21 @@
+# Core
+requests>=2.32.0
+PyYAML>=6.0.1
+beautifulsoup4>=4.12.3
+lxml>=5.2.0
+pypdf>=4.2.0
+
+# Schema validation
+jsonschema>=4.22.0
+
+# Model providers (Module A: dual extraction)
+anthropic>=0.34.0
+openai>=1.40.0
+
+# Backend API consumed by the frontend
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.7.0
+
+# Data handling
+python-dateutil>=2.9.0
