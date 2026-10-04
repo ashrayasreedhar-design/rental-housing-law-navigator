@@ -1,0 +1,450 @@
+# Source registry for targeted, allowlisted retrieval.
+#
+# Two registries with deliberately different powers:
+#
+#   authority:  may originate a rule record (supplies quoted_span + citation).
+#               Code publishers and official .gov pages only. Everything
+#               retrieved here is Tier 3 (team-retrieved) and is ALWAYS
+#               flagged requires_human_review.
+#
+#   signal:     may NEVER originate a rule or supply a quoted_span. Attaches
+#               corroboration / contradiction to rules that already exist from
+#               Tier 1-3 evidence. Drives conflict_flag, conflict_note and
+#               effective-date discrepancy detection.
+#
+# The manifest's own source_type classification is the basis for this split:
+# every URL under `signal` is labelled "secondary (law firm / news / mirror)"
+# by the organizers.
+#
+# This is an explicit allowlist, not a crawler. One page per entry, no link
+# following, rate limited, robots.txt respected. README section 6 permits
+# reading city code sites and publishers; it forbids bulk scraping.
+
+defaults:
+  rate_limit_seconds: 3.0
+  timeout_seconds: 30
+  user_agent: "RentalHousingLawNavigator/1.0 (MIT AI Hackathon prototype; contact via repo)"
+  respect_robots: true
+  max_retries: 2
+
+authority:
+  # --- Hoboken, NJ  (closes the T2 gap; manifest D032-D034, capture=check-terms)
+  - doc_id: D032
+    url: https://ecode360.com/15252438
+    jurisdiction: "Hoboken, NJ"
+    level: city
+    publisher: ecode360
+  - doc_id: D033
+    url: https://ecode360.com/15252470
+    jurisdiction: "Hoboken, NJ"
+    level: city
+    publisher: ecode360
+  - doc_id: D034
+    url: https://ecode360.com/46833413
+    jurisdiction: "Hoboken, NJ"
+    level: city
+    publisher: ecode360
+    priority: 1
+    expect_contains: ["Algorithmic Rent Fixing"]
+    note: >-
+      CONFIRMED: Hoboken Article II, "Algorithmic Rent Fixing in Rental Housing
+      Market". This is the authority source for T2 HOB-ALG-01. expect_contains
+      is asserted after fetch; if the phrase is absent the fetch is treated as
+      failed rather than silently accepted.
+
+  # --- Newark, NJ  (manifest D070-D072, capture=check-terms)
+  - doc_id: D070
+    url: https://ecode360.com/36623772
+    jurisdiction: "Newark, NJ"
+    level: city
+    publisher: ecode360
+  - doc_id: D071
+    url: https://ecode360.com/36637822
+    jurisdiction: "Newark, NJ"
+    level: city
+    publisher: ecode360
+  - doc_id: D072
+    url: https://ecode360.com/36642000
+    jurisdiction: "Newark, NJ"
+    level: city
+    publisher: ecode360
+
+  # --- Jersey City, NJ  (closes the other half of T2)
+  #
+  # Analyst-supplied lead (NOT a citable source, see analyst_leads below):
+  #   Jersey City Code section 218-12, effective June 2025, prohibits use of
+  #   algorithmic rent coordination services; public and private enforcement;
+  #   fines up to $2,000 per day.
+  #
+  # The manifest contains NO code-publisher URL for Jersey City -- only a city
+  # landing page (D036, captured, no ordinance text) and a news article (D035,
+  # signal tier). So the ordinance text must be located. These are CANDIDATE
+  # URLs: each is asserted with expect_contains, and any candidate whose body
+  # does not actually contain the ordinance is recorded as a failure. If every
+  # candidate fails, JC-ALG-01 is NOT created and T2's Jersey City half returns
+  # `unknown` with a documented source gap.
+  - doc_id: T-JC-218-12
+    url: https://ecode360.com/JE1980
+    jurisdiction: "Jersey City, NJ"
+    level: city
+    publisher: ecode360
+    candidate: true
+    priority: 1
+    expect_contains: ["218-12"]
+    note: "Candidate: Jersey City code root on ecode360. Probe for ch. 218 art. on algorithmic rent coordination."
+  - doc_id: T-JC-218-12-ALT
+    url: https://library.municode.com/nj/jersey_city/codes/code_of_ordinances
+    jurisdiction: "Jersey City, NJ"
+    level: city
+    publisher: municode
+    candidate: true
+    priority: 2
+    expect_contains: ["218-12"]
+    note: "Candidate: Municode is named in README section 6 alongside ecode360 and American Legal."
+
+  # --- Los Angeles, CA
+  - doc_id: D054
+    url: https://codelibrary.amlegal.com/codes/los_angeles/latest/lamc/0-0-0-322208
+    jurisdiction: "Los Angeles, CA"
+    level: city
+    publisher: american_legal
+    note: "LAMC. American Legal is named in README section 6 as readable."
+
+  # --- San Diego, CA
+  - doc_id: D074
+    url: https://gocodebook.com/library/us/ca/san-diego-zoning/division-11-prohibition-of-anti-competitive-automated-rent-price-fixing/98.1103-use-and-sale-of-algorithmic-devices-prohibited
+    jurisdiction: "San Diego, CA"
+    level: city
+    publisher: gocodebook
+    note: "SDMC 98.1103 algorithmic devices ban - operative text."
+  - doc_id: D075
+    url: https://gocodebook.com/library/us/ca/san-diego-zoning/division-8-prohibition-of-discrimination-based-on-a-tenant-s-source-of-income
+    jurisdiction: "San Diego, CA"
+    level: city
+    publisher: gocodebook
+    note: "SDMC source-of-income discrimination ban."
+
+  # --- Massachusetts (official; organizers' capture hit HTTP 403)
+  - doc_id: D044
+    url: https://www.mass.gov/doc/803-cmr-5-criminal-offender-record-information-cori-housing/download
+    jurisdiction: MA
+    level: state
+    publisher: mass_gov
+    note: "803 CMR 5.00 CORI. official source_type; organizer capture failed with 403. Retry politely; may still fail."
+
+  # --- San Francisco, CA  (NOT in the supplied link list, but the SF gap is
+  #     real: all 6 captured SF docs are sf.gov summaries, no Chapter 37
+  #     operative text. American Legal publishes the SF codes and is permitted
+  #     by README section 6. Disabled by default - enable deliberately.
+  - doc_id: T-SF-37
+    url: https://codelibrary.amlegal.com/codes/san_francisco/latest/sf_admin/0-0-0-13914
+    jurisdiction: "San Francisco, CA"
+    level: city
+    publisher: american_legal
+    enabled: false
+    note: "SF Admin Code ch.37 (Rent Ordinance). URL must be confirmed before enabling."
+
+signal:
+  # Secondary sources. Corroboration and contradiction ONLY.
+  # `targets` names the rule concept each signal speaks to, so a signal can be
+  # matched to extracted rules without being able to create one.
+
+  # --- Berkeley effective-date discrepancy (README section 9 bonus)
+  - doc_id: D002
+    url: https://www.morganlewis.com/pubs/2026/08/algorithmic-rent-pricing-litigation-expands-under-new-state-and-local-laws
+    jurisdiction: "Berkeley, CA"
+    kind: law_firm_alert
+    targets: [algorithmic_rent_setting]
+    note: "README section 9: reports January 2026 effective date vs March 1 2026 in Ordinance 7992 text (D001). Expect conflict_flag."
+  - doc_id: D037
+    url: https://www.morganlewis.com/pubs/2026/08/algorithmic-rent-pricing-litigation-expands-under-new-state-and-local-laws
+    jurisdiction: "Jersey City, NJ"
+    kind: law_firm_alert
+    targets: [algorithmic_rent_setting]
+    note: "Same alert, listed under Jersey City in manifest. Deduplicated on fetch."
+
+  # --- Los Angeles RSO effective-date discrepancy (README section 9 bonus)
+  - doc_id: D056
+    url: https://members.aagla.org/news/city-of-la-security-deposit-interest-requirement
+    jurisdiction: "Los Angeles, CA"
+    kind: trade_association
+    targets: [rent_increase_limits, security_deposits]
+    note: "Landlord-association side of the LA RSO dual effective date (2026-01-24 vs LAHD 2026-02-02)."
+
+  # --- California
+  - doc_id: D015
+    url: https://caanet.org/compliance-reminder-section-8-acceptance-and-criminal-background-checks-are-fair-housing-issues/
+    jurisdiction: CA
+    kind: trade_association
+    targets: [screening_restrictions]
+  - doc_id: D017
+    url: https://california.public.law/codes/civil_code_section_1950.6
+    jurisdiction: CA
+    kind: code_mirror
+    targets: [application_screening_fees]
+    note: "Cal. Civ. Code 1950.6 screening fee. README section 9: no single official 2026 dollar figure - expect conflict."
+  - doc_id: D018
+    url: https://law.justia.com/codes/california/code-civ/division-3/part-4/title-5/chapter-2/section-1946-2/
+    jurisdiction: CA
+    kind: code_mirror
+    targets: [just_cause_eviction]
+  - doc_id: D019
+    url: https://law.justia.com/codes/california/code-civ/division-3/part-4/title-5/chapter-2/section-1947-12/
+    jurisdiction: CA
+    kind: code_mirror
+    targets: [rent_increase_limits]
+  - doc_id: D020
+    url: https://law.justia.com/codes/california/code-civ/division-3/part-4/title-5/chapter-2/section-1950-5/
+    jurisdiction: CA
+    kind: code_mirror
+    targets: [security_deposits]
+  - doc_id: D021
+    url: https://law.justia.com/codes/california/code-gov/title-2/division-3/part-2-8/chapter-6/article-2/section-12955/
+    jurisdiction: CA
+    kind: code_mirror
+    targets: [screening_restrictions]
+  - doc_id: D028
+    url: https://www.clearygottlieb.com/news-and-insights/publication-listing/californias-antitrust-law-amendments-kick-in-targeting-algorithmic-pricing
+    jurisdiction: CA
+    kind: law_firm_alert
+    targets: [algorithmic_rent_setting]
+    note: "T1 corroboration: CA AB 325 / SB 763 commencement."
+
+  # --- Massachusetts
+  - doc_id: D030
+    url: https://www.cambridgeday.com/?p=158097
+    jurisdiction: "Cambridge, MA"
+    kind: news
+    targets: [algorithmic_rent_setting, rent_increase_limits]
+  - doc_id: D038
+    url: https://masslandlords.net/can-massachusetts-landlords-charge-an-application-fee/
+    jurisdiction: MA
+    kind: trade_association
+    targets: [application_screening_fees]
+  - doc_id: D055
+    url: https://massrealestatelawblog.com/tag/cella-v-attorney-general/
+    jurisdiction: MA
+    kind: law_blog
+    targets: [rent_increase_limits]
+    note: "T5: Cella v. Attorney General - the case that struck the rent-control ballot question."
+  - doc_id: D059
+    url: https://www.wbur.org/news/2026/06/23/massachusetts-high-court-rent-control-ballot-question-struck
+    jurisdiction: MA
+    kind: news
+    targets: [rent_increase_limits]
+    note: "T5 corroboration: SJC struck IP 25-21 on 2026-06-23. Affected set must be EMPTY."
+
+  # --- New Jersey
+  - doc_id: D035
+    url: https://hudsoncountyview.com/jersey-city-council-approves-realpage-ban-and-increasing-benefits-for-laborers/
+    jurisdiction: "Jersey City, NJ"
+    kind: news
+    targets: [algorithmic_rent_setting]
+    note: >-
+      T2: the only evidence in the manifest that the Jersey City ban exists.
+      News source. Under provenance_policy it may serve as a tier-4
+      secondary_attested origin for JC-ALG-01 ONLY if every authority
+      candidate (T-JC-218-12, T-JC-218-12-ALT) fails.
+    # Analyst-supplied expected quotation. The fetcher asserts this appears
+    # verbatim in the retrieved page. If it does not, the attestation is
+    # rejected rather than recorded -- an unverifiable quote is worse than
+    # no quote.
+    expect_contains:
+      - "banning rent-setting algorithms"
+    attestation:
+      candidate_quote: >-
+        The Jersey City Council unanimously approved (9-0) a measure banning
+        rent-setting algorithms
+      supports_rule: JC-ALG-01
+      establishes:
+        - enactment        # a measure was passed, 9-0
+        - subject_matter   # rent-setting algorithms
+      does_not_establish:
+        - operative_text
+        - coverage_conditions
+        - exemptions
+        - citation          # the section 218-12 cite is from an analyst lead, not this article
+        - effective_date
+      consequence: >-
+        If JC-ALG-01 is built on this attestation, `requirement` must be
+        limited to what the article actually supports, `key_value` is null,
+        `coverage_conditions` is null, confidence is 0.35, conflict_flag is
+        true, review_status is requires_human_review, and every Jersey City
+        address lookup for this rule returns result='unknown' naming the
+        missing ordinance text -- NOT 'applies'.
+  - doc_id: D060
+    url: https://daypitney.com/new-jersey-enacts-fair-act-to-prohibit-algorithmic-rent-setting-practices
+    jurisdiction: NJ
+    kind: law_firm_alert
+    targets: [algorithmic_rent_setting]
+    note: "T3 corroboration. Authoritative text is D069 (P.L. 2026 c.43), already captured."
+  - doc_id: D061
+    url: https://law.justia.com/codes/new-jersey/title-10/section-10-5-12/
+    jurisdiction: NJ
+    kind: code_mirror
+    targets: [screening_restrictions]
+  - doc_id: D062
+    url: https://law.justia.com/codes/new-jersey/title-2a/section-2a-18-61-1/
+    jurisdiction: NJ
+    kind: code_mirror
+    targets: [just_cause_eviction]
+    note: "Anti-Eviction Act. Authority text available in D067 (official NJ DCA handbook, 20 occurrences)."
+  - doc_id: D063
+    url: https://law.justia.com/codes/new-jersey/title-46/section-46-8-21-2/
+    jurisdiction: NJ
+    kind: code_mirror
+    targets: [security_deposits]
+    note: "Deposit cap. Authority text available in D067 line 654."
+  - doc_id: D064
+    url: https://law.justia.com/codes/new-jersey/title-46/section-46-8-26/
+    jurisdiction: NJ
+    kind: code_mirror
+    targets: [security_deposits]
+
+  # --- San Diego / Santa Ana
+  - doc_id: D077
+    url: https://www.lassd.org/resource/city-of-san-diego-tenant-protection-ordinance/
+    jurisdiction: "San Diego, CA"
+    kind: legal_aid
+    targets: [just_cause_eviction]
+  - doc_id: D086
+    url: https://www.ocbj.com/real-estate/santa-ana-bans-landlords-from-using-ai-apartment-rent-pricing-software/
+    jurisdiction: "Santa Ana, CA"
+    kind: news
+    targets: [algorithmic_rent_setting]
+  - doc_id: D087
+    url: https://www.publicceo.com/2026/02/santa-ana-city-council-continues-to-strengthen-tenant-protections-by-banning-anticompetitive-rent-setting-software/
+    jurisdiction: "Santa Ana, CA"
+    kind: news
+    targets: [algorithmic_rent_setting]
+
+# ---------------------------------------------------------------------------
+# analyst_leads
+#
+# Facts supplied by a human operator during the build. These are NOT sources
+# and NEVER become a quoted_span, a citation, or a rule record. They exist to:
+#   (a) tell the fetcher what to look for (expect_contains assertions), and
+#   (b) be cross-checked against retrieved text, so that a mismatch between
+#       what the analyst believed and what the ordinance says is surfaced as a
+#       conflict for human review rather than silently resolved either way.
+#
+# Every lead must be confirmed by a Tier 1-3 document before any rule relying
+# on it can leave `requires_human_review`.
+# ---------------------------------------------------------------------------
+analyst_leads:
+  - lead_id: L-JC-01
+    jurisdiction: "Jersey City, NJ"
+    expected_citation: "Jersey City Code § 218-12"
+    expected_effective_date: "2025-06"
+    category: algorithmic_rent_setting
+    claim: >-
+      Prohibits a landlord's use of algorithmic rent coordination services;
+      includes public and private enforcement; civil fines up to $2,000 per day.
+    expect_in_text: ["218-12"]
+    verify_values:
+      penalty_contains: ["2,000", "2000"]
+    supports_rule: JC-ALG-01
+    supports_test: T2
+    provenance: analyst_supplied_unverified
+    status: unverified
+
+  - lead_id: L-HOB-01
+    jurisdiction: "Hoboken, NJ"
+    expected_citation: "Hoboken City Code ch. 158-2"
+    expected_effective_date: "2025-07"
+    category: algorithmic_rent_setting
+    claim: >-
+      Prohibits landlords from using software, algorithms or data-sharing
+      platforms to coordinate or recommend rents, lease terms, or occupancy.
+    expect_in_text: ["158", "Algorithmic Rent Fixing"]
+    supports_rule: HOB-ALG-01
+    supports_test: T2
+    provenance: analyst_supplied_unverified
+    status: unverified
+    note: >-
+      Consistent with the confirmed ecode360 page for D034 ("Article II,
+      Algorithmic Rent Fixing in Rental Housing Market"), which should sit
+      within chapter 158. Confirm the chapter number against retrieved text;
+      a mismatch is a conflict, not a rounding error.
+
+# ---------------------------------------------------------------------------
+# provenance_policy
+#
+# Resolution order for originating a rule record. We always try to stand a
+# rule on the strongest available evidence, and we never let a weaker source
+# silently masquerade as a stronger one.
+# ---------------------------------------------------------------------------
+provenance_policy:
+  ladder:
+    - tier: 1
+      name: primary_captured
+      description: "Organizer-captured operative text (the ordinance/statute as enacted)."
+      base_confidence: 0.90
+      may_originate_rule: true
+      default_review: not_required
+
+    - tier: 2
+      name: official_summary
+      description: >-
+        Organizer-captured OFFICIAL page that restates rather than enacts law
+        (e.g. D067 NJ DCA Truth-in-Renting handbook, D079 sf.gov just-cause
+        overview). Government-published, so citation is reliable, but the text
+        is a restatement.
+      base_confidence: 0.70
+      may_originate_rule: true
+      default_review: not_required
+
+    - tier: 3
+      name: team_retrieved_authority
+      description: "Code publisher or official page retrieved by us from the allowlist."
+      base_confidence: 0.60
+      may_originate_rule: true
+      default_review: requires_human_review
+
+    - tier: 4
+      name: secondary_attested
+      description: >-
+        LAST RESORT. No authority text could be retrieved, but a secondary
+        source (law firm alert, news, trade publication) describes the rule
+        specifically enough to record. Permitted ONLY under the conditions in
+        `secondary_attested_rules` below. The rule is recorded so the system
+        does not pretend the law does not exist -- but it is quarantined.
+      base_confidence: 0.35
+      may_originate_rule: true
+      default_review: requires_human_review
+
+    - tier: 5
+      name: no_evidence
+      description: "No retrievable text at all. No rule record is created."
+      may_originate_rule: false
+
+  secondary_attested_rules:
+    # All of these must hold, or we fall through to tier 5 (unknown).
+    require_all:
+      - "Tier 1-3 retrieval for this rule was attempted and FAILED (recorded in out/fetch_report.json)."
+      - "quoted_span is copied verbatim from the secondary document actually read -- never paraphrased, never attributed to the ordinance."
+      - "source_url points at the secondary document, NOT at the ordinance we did not read."
+      - "citation carries the official cite AND is marked unverified in conflict_note."
+      - "conflict_flag = true."
+      - "review_status = requires_human_review."
+      - "Rule is EXCLUDED from the 'applies today' list until a human approves it."
+      - "Address lookups touching this rule return result='unknown' with the gap named, not 'applies'."
+    rationale: >-
+      A consumer-facing compliance tool that silently omits a real ordinance is
+      as wrong as one that invents a fake one. Recording the rule with honest,
+      visibly weak provenance -- and refusing to act on it until reviewed --
+      is more truthful than either extreme. The user sees "we believe a rule
+      exists here, we could not verify it against primary text, here is who
+      says so."
+
+  applies_today_gate:
+    description: >-
+      The 'Rules that apply today' section may ONLY contain rules where ALL of:
+    conditions:
+      - "status == in_force as of the query date"
+      - "review_status in (not_required, approved)"
+      - "tier <= 3"
+      - "quoted_span verified verbatim against its source document"
+    everything_else: >-
+      Routed to 'What's about to change' (pending / not_yet_effective) or to
+      the data-quality panel (unverified / low confidence / conflicted).
